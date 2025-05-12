@@ -614,9 +614,43 @@
   margin-bottom: var(--space-xl);
 }
 
+/* Practice Test Section */
+.practice-test-section {
+  margin-bottom: 3rem;
+}
+
+.practice-test-container {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  padding: 2rem;
+  overflow: hidden;
+}
+
+.practice-test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.practice-test-button {
+  background-color: #e74c3c;
+}
+
+.practice-test-button:hover {
+  background-color: #c0392b;
+}
+
+.practice-test-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
 /* Guided Learning Section */
 .guided-learning-section {
-  margin-bottom: var(--space-xl);
+  margin-bottom: 3rem;
 }
 
 .guided-learning-container {

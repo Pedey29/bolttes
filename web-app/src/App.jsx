@@ -12,6 +12,7 @@ import Concepts from './pages/Concepts';
 import Profile from './pages/Profile';
 import GuidedLearning from './pages/GuidedLearning';
 import GuidedLearningExperience from './pages/GuidedLearningExperience';
+import PracticeTest from './pages/PracticeTest';
 import Navbar from './components/Navbar';
 
 function App() {
@@ -144,6 +145,12 @@ function App() {
           <Route path="/profile" element={
             <ProtectedRoute>
               <Profile user={user} />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/practice-test" element={
+            <ProtectedRoute>
+              <PracticeTest user={user} />
             </ProtectedRoute>
           } />
           

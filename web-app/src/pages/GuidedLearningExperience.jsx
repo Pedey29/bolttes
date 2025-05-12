@@ -156,6 +156,7 @@ const GuidedLearningExperience = ({ user }) => {
   const [quizAnswers, setQuizAnswers] = useState([]);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
+  const [allChaptersCompleted, setAllChaptersCompleted] = useState(false);
   const [learningProgress, setLearningProgress] = useState(null);
 
   // Fetch all chapters and topics on component mount
@@ -590,8 +591,10 @@ const GuidedLearningExperience = ({ user }) => {
         } else {
           // Completed all chapters
           await updateUserProgress(currentChapterIndex, currentTopicIndex, 'completed');
-          // Show completion message or redirect
-          alert('Congratulations! You have completed all chapters.');
+          // Award bonus XP for completing all chapters
+          await updateXP(user.id, 100, 'complete_all_chapters');
+          // Set completion state
+          setAllChaptersCompleted(true);
         }
       }
     }
@@ -871,6 +874,69 @@ const GuidedLearningExperience = ({ user }) => {
     }
   };
 
+  // If all chapters are completed, show the completion screen
+  if (allChaptersCompleted) {
+    return (
+      <div className="guided-learning-experience">
+        <div className="completion-container">
+          <div className="completion-header">
+            <h1>Congratulations!</h1>
+            <p>You've completed all chapters in the SIE Guided Learning Experience</p>
+          </div>
+          
+          <div className="completion-content">
+            <div className="completion-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+            
+            <div className="completion-message">
+              <h2>You're Ready for the Practice Test!</h2>
+              <p>Now that you've mastered all the material, it's time to test your knowledge with our comprehensive 75-question practice exam.</p>
+              <p>The practice test will simulate the actual exam conditions and give you detailed feedback on your performance.</p>
+            </div>
+            
+            <div className="completion-stats">
+              <div className="stat-item">
+                <div className="stat-value">{chapters.length}</div>
+                <div className="stat-label">Chapters Completed</div>
+              </div>
+              
+              <div className="stat-item">
+                <div className="stat-value">{topics.length}</div>
+                <div className="stat-label">Topics Mastered</div>
+              </div>
+              
+              <div className="stat-item">
+                <div className="stat-value">+100</div>
+                <div className="stat-label">Bonus XP Earned</div>
+              </div>
+            </div>
+            
+            <div className="completion-actions">
+              <button 
+                className="practice-test-button"
+                onClick={() => navigate('/practice-test')}
+              >
+                Take Practice Test
+              </button>
+              
+              <button 
+                className="dashboard-button"
+                onClick={() => navigate('/dashboard')}
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Regular learning experience view
   return (
     <div className="guided-learning-experience">
       <div className="guided-learning-header">

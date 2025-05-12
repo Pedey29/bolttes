@@ -66,6 +66,7 @@ const Quiz = ({ user }) => {
       const shuffled = [...data].sort(() => Math.random() - 0.5);
       setQuestions(shuffled);
       setQuizStarted(true);
+      setLoading(false); // Make sure to set loading to false when successful
       return true;
     } catch (error) {
       console.error('Error fetching questions:', error.message);
@@ -75,12 +76,25 @@ const Quiz = ({ user }) => {
   };
 
   const startQuiz = async () => {
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    setQuizCompleted(false);
-    setAnswers([]);
-    setQuizStarted(true);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setCurrentQuestionIndex(0);
+      setScore(0);
+      setQuizCompleted(false);
+      setAnswers([]);
+      
+      // Ensure we have questions loaded
+      if (questions.length === 0) {
+        const success = await fetchQuestions(topicId);
+        if (!success) return;
+      }
+      
+      setQuizStarted(true);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error starting quiz:', error);
+      setLoading(false);
+    }
   };
 
   const handleOptionSelect = (optionIndex) => {
@@ -154,14 +168,14 @@ const Quiz = ({ user }) => {
       const passed = percentageScore >= passThreshold;
       
       // Update study progress to track quiz completion
-      if (selectedTopic) {
+      if (topicId) {
         // Check if entry exists
         const { data: existingProgress } = await supabase
           .from('study_progress')
           .select('*')
           .eq('user_id', user.id)
           .eq('content_type', 'quiz')
-          .eq('topic_id', selectedTopic)
+          .eq('topic_id', topicId)
           .single();
         
         if (existingProgress) {
@@ -181,7 +195,7 @@ const Quiz = ({ user }) => {
             .from('study_progress')
             .insert({
               user_id: user.id,
-              topic_id: selectedTopic,
+              topic_id: topicId,
               content_type: 'quiz',
               content_id: contentId,
               mastered: passed, // Only mark as mastered if passed
