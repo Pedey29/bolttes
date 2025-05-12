@@ -451,6 +451,11 @@ const GuidedLearningExperience = ({ user }) => {
   // Load quiz questions
   const loadQuiz = async (topicId) => {
     try {
+      // Reset quiz state immediately to prevent showing old quiz results
+      setQuizSubmitted(false);
+      setQuizScore(0);
+      setQuizAnswers([]);
+      
       const { data, error } = await supabase
         .from('quiz_questions')
         .select('*')
@@ -461,12 +466,13 @@ const GuidedLearningExperience = ({ user }) => {
       if (data && data.length > 0) {
         setQuizQuestions(data);
         setQuizAnswers(Array(data.length).fill(''));
-        setQuizSubmitted(false);
-        setQuizScore(0);
+      } else {
+        setQuizQuestions([]);
       }
       return data;
     } catch (error) {
       console.error('Error loading quiz questions:', error);
+      setQuizQuestions([]);
       return [];
     }
   };
@@ -474,21 +480,68 @@ const GuidedLearningExperience = ({ user }) => {
   // Update user progress in the database
   const updateUserProgress = async (chapterIndex, topicIndex, step) => {
     try {
-      const { data, error } = await supabase
+      // First check if a record exists
+      const { data: existingData, error: checkError } = await supabase
         .from('user_learning_progress')
-        .upsert({
-          user_id: user.id,
-          current_chapter_index: chapterIndex,
-          current_topic_index: topicIndex,
-          current_step: step,
-          last_updated: new Date().toISOString(),
-          completed: false
-        })
-        .select();
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
       
-      if (error) throw error;
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing progress:', checkError);
+      }
       
-      setLearningProgress(data[0]);
+      // Prepare progress data
+      const progressData = {
+        user_id: user.id,
+        current_chapter_index: chapterIndex,
+        current_topic_index: topicIndex,
+        current_step: step,
+        last_updated: new Date().toISOString(),
+        completed: step === 'completed'
+      };
+      
+      let result;
+      
+      if (existingData) {
+        // Update existing record
+        const { data, error } = await supabase
+          .from('user_learning_progress')
+          .update(progressData)
+          .eq('user_id', user.id)
+          .select();
+        
+        if (error) throw error;
+        result = data;
+      } else {
+        // Insert new record
+        const { data, error } = await supabase
+          .from('user_learning_progress')
+          .insert(progressData)
+          .select();
+        
+        if (error) throw error;
+        result = data;
+      }
+      
+      console.log('Progress saved successfully:', result);
+      setLearningProgress(result[0]);
+      
+      // Also update study progress for this topic
+      if (step === 'quiz' && quizSubmitted) {
+        const currentTopic = topics[topicIndex];
+        if (currentTopic) {
+          await supabase
+            .from('study_progress')
+            .upsert({
+              user_id: user.id,
+              content_id: currentTopic.id,
+              content_type: 'topic',
+              mastered: quizScore >= 70,
+              last_studied: new Date().toISOString()
+            });
+        }
+      }
     } catch (error) {
       console.error('Error updating user progress:', error);
     }
@@ -608,7 +661,7 @@ const GuidedLearningExperience = ({ user }) => {
   };
 
   // Handle quiz submission
-  const handleQuizSubmit = () => {
+  const handleQuizSubmit = async () => {
     // Calculate score
     let score = 0;
     quizQuestions.forEach((question, index) => {
@@ -622,7 +675,35 @@ const GuidedLearningExperience = ({ user }) => {
     setQuizSubmitted(true);
     
     // Update XP based on score
-    updateXP(user.id, Math.max(1, Math.round(percentage / 10)), 'quiz_completion');
+    await updateXP(user.id, Math.max(1, Math.round(percentage / 10)), 'quiz_completion');
+    
+    // Save progress in the database
+    const currentChapter = chapters[currentChapterIndex];
+    const currentTopic = topics[currentTopicIndex];
+    
+    if (currentChapter && currentTopic) {
+      try {
+        // Save quiz result
+        await supabase.from('quiz_attempts').insert({
+          user_id: user.id,
+          topic_id: currentTopic.id,
+          score: percentage,
+          completed_at: new Date().toISOString()
+        });
+        
+        // Update user progress
+        await updateUserProgress(currentChapterIndex, currentTopicIndex, 'quiz');
+      } catch (error) {
+        console.error('Error saving quiz results:', error);
+      }
+    }
+  };
+  
+  // Handle quiz restart
+  const handleRestartQuiz = () => {
+    setQuizSubmitted(false);
+    setQuizScore(0);
+    setQuizAnswers(Array(quizQuestions.length).fill(''));
   };
 
   // Handle save and exit
@@ -722,6 +803,16 @@ const GuidedLearningExperience = ({ user }) => {
                   <p className="success-message">Great job! You've mastered this topic.</p>
                 ) : (
                   <p className="warning-message">You might want to review this topic again.</p>
+                )}
+                
+                {/* Add restart quiz button for scores of 66% or less (2/3 or less correct) */}
+                {quizScore <= 66 && (
+                  <button 
+                    className="restart-quiz-button" 
+                    onClick={handleRestartQuiz}
+                  >
+                    Restart Quiz
+                  </button>
                 )}
               </div>
               <div className="quiz-review">

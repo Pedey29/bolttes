@@ -120,13 +120,6 @@ const Chapters = ({ user }) => {
                     <div className="chapter-header">
                       <h2>{chapter.title}</h2>
                       <p>{chapter.description}</p>
-                      <div className="guided-learning-cta">
-                        <Link to={`/guided-learning/${chapter.id}`} className="btn-guided-learning">
-                          <span className="icon">🚀</span>
-                          Start Guided Learning
-                          <span className="subtitle">Progress through content in a structured way</span>
-                        </Link>
-                      </div>
                     </div>
                     
                     <div className="topics-grid">

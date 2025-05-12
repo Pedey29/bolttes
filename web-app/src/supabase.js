@@ -14,6 +14,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
+// Helper function to get the current user
+export const getCurrentUser = async () => {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  return { user, error };
+};
+
 // XP and streak helpers
 export const updateXP = async (userId, amount, eventType) => {
   try {
