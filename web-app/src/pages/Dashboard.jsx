@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../supabase';
+import { supabase, getCurrentUser } from '../supabase';
 import OverallProgress from '../components/OverallProgress';
 import './Dashboard.css';
 
@@ -13,15 +13,29 @@ const Dashboard = ({ user }) => {
   });
   const [loading, setLoading] = useState(true);
   const [daysUntilExam, setDaysUntilExam] = useState(null);
-  const [overallProgress, setOverallProgress] = useState(null);
   const [learningProgress, setLearningProgress] = useState(null);
+  const [error, setError] = useState(null);
+  const [chapters, setChapters] = useState([]);
 
   useEffect(() => {
-    if (user) {
-      fetchUserData();
-      fetchLearningProgress();
-      // updateUserStreak();
-    }
+    const initDashboard = async () => {
+      try {
+        if (user) {
+          await Promise.all([
+            fetchUserData(),
+            fetchLearningProgress(),
+            fetchChapters()
+          ]);
+        }
+      } catch (err) {
+        console.error('Dashboard initialization error:', err);
+        setError('Failed to load dashboard data. Please refresh the page.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    initDashboard();
   }, [user]);
 
   // Fetch user's learning progress for guided learning
@@ -43,6 +57,27 @@ const Dashboard = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching learning progress:', error);
+    }
+  };
+  
+  // Fetch chapters for guided learning
+  const fetchChapters = async () => {
+    try {
+      // Get all chapters
+      const { data, error } = await supabase
+        .from('chapters')
+        .select('*')
+        .order('chapter_order', { ascending: true });
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        setChapters(data);
+      }
+    } catch (error) {
+      console.error('Error fetching chapters:', error);
     }
   };
   
@@ -305,6 +340,23 @@ const Dashboard = ({ user }) => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="dashboard-error">
+        <div className="error-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h2>Something went wrong</h2>
+        <p>{error}</p>
+        <button onClick={() => window.location.reload()}>Refresh Page</button>
+      </div>
+    );
+  }
+
   const userStats = {
     xp: profile?.xp || 0,
     streak: profile?.streak || 0,
@@ -314,193 +366,237 @@ const Dashboard = ({ user }) => {
 
   return (
     <div className="dashboard-container">
-      <div className="dashboard-welcome">
-        <div className="welcome-content">
+      {/* Hero Section */}
+      <section className="dashboard-hero">
+        
+        <div className="hero-content">
           <h1>Welcome, {profile?.username || user?.email?.split('@')[0]}!</h1>
-          <p className="dashboard-subtitle">Track your progress and continue your SIE exam preparation journey</p>
-        </div>
-      </div>
-      
-      <div className="dashboard-header">
-        
-        {daysUntilExam !== null && (
-          <div className={`exam-countdown ${daysUntilExam <= 7 ? 'urgent' : daysUntilExam <= 14 ? 'warning' : ''}`}>
-            <div className="countdown-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-            </div>
-            <div className="countdown-content">
-              <span className="countdown-days">{daysUntilExam}</span>
-              <span className="countdown-label">Days until your SIE exam</span>
-              <Link to="/profile" className="countdown-edit">Update exam date</Link>
-            </div>
-          </div>
-        )}
-        
-        {daysUntilExam === null && (
-          <div className="exam-countdown no-date">
-            <div className="countdown-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-              </svg>
-            </div>
-            <div className="countdown-content">
-              <span className="countdown-label">Set your exam date to see a countdown</span>
-              <Link to="/profile" className="countdown-edit">Set exam date</Link>
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {profile?.overall_progress ? (
-        <OverallProgress progress={profile.overall_progress} totalTopics={stats.topics} />
-      ) : overallProgress ? (
-        <OverallProgress progress={overallProgress} totalTopics={stats.topics} />
-      ) : (
-        <div className="progress-placeholder">
-          <h2>Track Your SIE Exam Progress</h2>
-          <p>Complete flashcards, quizzes, and review concepts to see your progress here!</p>
-        </div>
-      )}
-      
-      <h2 className="section-title">Study Resources</h2>
-      
-      <div className="dashboard-actions">
-        {learningProgress ? (
-          <Link to="/guided-learning-experience" className="action-card continue-learning">
-            <div className="action-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-            </div>
-            <h3 className="action-title">Continue Learning</h3>
-            <p className="action-description">
-              {learningProgress.completed ? 
-                'You completed all chapters! Start again or explore specific topics.' : 
-                `Continue from Chapter ${learningProgress.current_chapter_index + 1}, Topic ${learningProgress.current_topic_index + 1}`}
-            </p>
-            <div className="progress-indicator">
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${calculateLearningProgress()}%` }}
-                ></div>
+          <p>Master the SIE exam with our structured guided learning experience</p>
+          
+          {/* Study Stats in Hero Section */}
+          <div className="hero-stats-card">
+            <div className="hero-stat-item">
+              <div className="hero-stat-icon xp">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
               </div>
-              <span className="progress-text">{calculateLearningProgress()}% Complete</span>
+              <div className="hero-stat-info">
+                <span className="hero-stat-value">{profile?.xp || 0}</span>
+                <span className="hero-stat-label">XP Points</span>
+              </div>
             </div>
-            <div className="action-button">Continue Learning</div>
-          </Link>
-        ) : (
-          <Link to="/guided-learning-experience" className="action-card primary-action">
-            <div className="action-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
+            
+            <div className="hero-stat-item">
+              <div className="hero-stat-icon streak">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                </svg>
+              </div>
+              <div className="hero-stat-info">
+                <span className="hero-stat-value">{profile?.streak || 0}</span>
+                <span className="hero-stat-label">Day Streak</span>
+              </div>
             </div>
-            <h3 className="action-title">Start Guided Learning</h3>
-            <p className="action-description">Begin a structured learning path that guides you through all chapters in order</p>
-            <div className="action-button">Start Learning</div>
-          </Link>
-        )}
-        
-        <Link to="/chapters" className="action-card secondary-action">
-          <div className="action-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-            </svg>
+            
+            <div className="hero-stat-item">
+              <div className="hero-stat-icon quizzes">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </div>
+              <div className="hero-stat-info">
+                <span className="hero-stat-value">{stats.quizzes}</span>
+                <span className="hero-stat-label">Quizzes Completed</span>
+              </div>
+            </div>
           </div>
-          <h3 className="action-title">SIE Exam Study Guide</h3>
-          <p className="action-description">Access our comprehensive study guide organized by chapters with flashcards, quizzes, and concepts</p>
-          <div className="action-button">Browse Topics</div>
-        </Link>
-      </div>
+        </div>
+      </section>
+
+      {/* Guided Learning Section */}
+      <section className="guided-learning-section">
+        <div className="guided-learning-container">
+          <div className="guided-learning-header">
+            <div className="header-content">
+              <h2>Guided Learning Experience</h2>
+              <p>Our step-by-step approach helps you master the SIE exam material efficiently</p>
+              
+              {learningProgress && (
+                <div className="progress-indicator">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${calculateLearningProgress()}%` }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">{calculateLearningProgress()}% Complete</span>
+                </div>
+              )}
+            </div>
+            
+            {learningProgress ? (
+              <Link to="/guided-learning-experience" className="primary-button">
+                Continue Learning
+              </Link>
+            ) : (
+              <Link to="/guided-learning-experience" className="primary-button">
+                Start Learning
+              </Link>
+            )}
+          </div>
+          
+          <div className="guided-learning-features">
+            <div className="feature-card">
+              <div className="feature-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+              </div>
+              <h3>Structured Concepts</h3>
+              <p>Clear explanations of key exam topics</p>
+            </div>
+            
+            <div className="feature-card">
+              <div className="feature-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                  <path d="M12 12h.01"></path>
+                </svg>
+              </div>
+              <h3>Interactive Flashcards</h3>
+              <p>Reinforce your understanding of key terms</p>
+            </div>
+            
+            <div className="feature-card">
+              <div className="feature-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </div>
+              <h3>Knowledge Quizzes</h3>
+              <p>Test your understanding with practice questions</p>
+            </div>
+          </div>
+          
+          {learningProgress ? (
+            <div className="current-progress">
+              <div className="progress-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+                </svg>
+              </div>
+              <div className="progress-content">
+                <h3>Current Progress</h3>
+                <p>
+                  {learningProgress.completed ? 
+                    'You completed all chapters! Start again or explore specific topics.' : 
+                    `You're on Chapter ${learningProgress.current_chapter_index + 1}, Topic ${learningProgress.current_topic_index + 1}, ${learningProgress.current_step.charAt(0).toUpperCase() + learningProgress.current_step.slice(1)} Section`}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </section>
       
-      <h2 className="section-title">Your Progress</h2>
+      {/* Chapters Overview Section */}
+      <section className="chapters-overview-section">
+        <div className="chapters-grid">
+          {chapters.slice(0, 6).map((chapter, index) => (
+            <div key={chapter.id} className="chapter-card">
+              <div className="chapter-number">{chapter.chapter_order || index + 1}</div>
+              <div className="chapter-content">
+                <h3>{chapter.title}</h3>
+                <p>{chapter.description ? 
+                  (chapter.description.length > 100 ? 
+                    `${chapter.description.substring(0, 100)}...` : 
+                    chapter.description) : 
+                  'Explore this chapter through our guided learning experience.'}</p>
+              </div>
+              <Link 
+                to="/guided-learning-experience" 
+                className="chapter-link"
+                onClick={() => {
+                  // Logic to start guided learning at this specific chapter
+                  // This would be implemented in the GuidedLearningExperience component
+                }}
+              >
+                Study This Chapter
+              </Link>
+            </div>
+          ))}
+          
+          {chapters.length > 6 && (
+            <div className="view-all-chapters">
+              <Link to="/chapters" className="view-all-link">
+                View All {chapters.length} Chapters
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
       
-      <div className="dashboard-stats">
-        <div className="stat-card">
-          <div className="stat-value">
-            {userStats.xp || 0}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
-          </div>
-          <div className="stat-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="8" r="7"></circle>
-              <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-            </svg>
-            Total XP Points
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-value">
-            {userStats.streak || 0}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-            </svg>
-          </div>
-          <div className="stat-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
-            </svg>
-            Day Streak
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-value">
-            {userStats.flashcards || 0}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-              <path d="M12 12h.01"></path>
-            </svg>
-          </div>
-          <div className="stat-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="9" y1="3" x2="9" y2="21"></line>
-            </svg>
-            Flashcards Mastered
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-value">
-            {userStats.quizzes || 0}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-          </div>
-          <div className="stat-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 11 12 14 22 4"></polyline>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-            </svg>
-            Quizzes Completed
-          </div>
-        </div>
-      </div>
+      {/* Stats Summary Section removed - now in hero area */}
       
-      <div className="dashboard-tips">
-        <h3>Study Tips for Success</h3>
-        <ul>
-          <li>Study consistently for at least 30 minutes each day to maintain your streak</li>
-          <li>Create flashcards for concepts you find challenging to reinforce your memory</li>
-          <li>Take practice quizzes regularly to identify knowledge gaps and track improvement</li>
-          <li>Review your incorrect answers to focus your study on weak areas</li>
-          <li>Use the learning concepts section to ensure comprehensive coverage of all exam topics</li>
-        </ul>
-      </div>
+      {/* Study Tips Section - Simplified */}
+      <section className="dashboard-tips-section">
+        <h2>Study Tips for Success</h2>
+        <div className="tips-card">
+          <ul className="tips-list">
+            <li>
+              <div className="tip-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+              <span className="tip-text">Follow our guided learning path for comprehensive exam preparation</span>
+            </li>
+            <li>
+              <div className="tip-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+              </div>
+              <span className="tip-text">Study consistently for at least 30 minutes each day to build knowledge retention</span>
+            </li>
+            <li>
+              <div className="tip-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </div>
+              <span className="tip-text">Complete all quizzes to identify and address knowledge gaps before your exam</span>
+            </li>
+            <li>
+              <div className="tip-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6"></path>
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                  <path d="M3 22v-6h6"></path>
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                </svg>
+              </div>
+              <span className="tip-text">Regularly review flashcards to reinforce key concepts and improve long-term memory</span>
+            </li>
+          </ul>
+        </div>
+      </section>
     </div>
   );
 };

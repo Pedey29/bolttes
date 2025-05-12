@@ -17,6 +17,7 @@ import Navbar from './components/Navbar';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [daysUntilExam, setDaysUntilExam] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,9 +26,13 @@ function App() {
       async (event, session) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setUser(session?.user || null);
-          if (session?.user) navigate('/dashboard');
+          if (session?.user) {
+            navigate('/dashboard');
+            fetchExamDate(session.user.id);
+          }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
+          setDaysUntilExam(null);
           navigate('/login');
         }
       }
@@ -39,6 +44,9 @@ function App() {
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user || null);
+        if (session?.user) {
+          fetchExamDate(session.user.id);
+        }
       } catch (error) {
         console.error('Error checking session:', error.message);
       } finally {
@@ -52,6 +60,35 @@ function App() {
       if (authListener) authListener.subscription.unsubscribe();
     };
   }, [navigate]);
+  
+  // Fetch exam date from user profile
+  const fetchExamDate = async (userId) => {
+    try {
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('exam_date')
+        .eq('id', userId)
+        .single();
+        
+      if (error) throw error;
+      
+      if (profileData?.exam_date) {
+        const examDate = new Date(profileData.exam_date);
+        const today = new Date();
+        
+        // Reset hours to compare just the dates
+        today.setHours(0, 0, 0, 0);
+        examDate.setHours(0, 0, 0, 0);
+        
+        const timeDiff = examDate.getTime() - today.getTime();
+        const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+        
+        setDaysUntilExam(daysDiff);
+      }
+    } catch (error) {
+      console.error('Error fetching exam date:', error.message);
+    }
+  };
 
   // Protected route component
   const ProtectedRoute = ({ children }) => {
@@ -62,7 +99,7 @@ function App() {
 
   return (
     <div className="app">
-      {user && <Navbar user={user} />}
+      {user && <Navbar user={user} daysUntilExam={daysUntilExam} />}
       
       <div className="container">
         <Routes>

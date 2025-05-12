@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabase';
 import './Navbar.css';
 
-const Navbar = ({ user }) => {
+const Navbar = ({ user, daysUntilExam }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
@@ -35,30 +35,30 @@ const Navbar = ({ user }) => {
     <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
       <div className="navbar-container">
         <Link to="/dashboard" className="navbar-logo">
-          <span>SIE Prep</span>
+          <span>FinLearn</span>
         </Link>
         
-        {user && (
-          <div className="navbar-links">
-            <Link to="/dashboard" className={location.pathname === '/dashboard' ? 'active' : ''}>
-              Dashboard
-            </Link>
-            <Link to="/chapters" className={location.pathname === '/chapters' || location.pathname.includes('/flashcards/') || location.pathname.includes('/quiz/') || location.pathname.includes('/concepts/') ? 'active' : ''}>
-              Study Guide
-            </Link>
-            <Link to="/profile" className={location.pathname === '/profile' ? 'active' : ''}>
-              Profile
-            </Link>
+        {user && daysUntilExam !== null && (
+          <div className="navbar-countdown">
+            <span className="days-count">{daysUntilExam}</span>
+            <span className="days-label">Days until exam</span>
           </div>
         )}
         
         {user && (
-          <div className="navbar-user">
-            <div className="navbar-user-info">
-              <span className="navbar-user-name">{user.email?.split('@')[0]}</span>
-              <span className="navbar-user-email">{user.email}</span>
-            </div>
-            <button onClick={handleSignOut} className="navbar-button">
+          <div className="navbar-links">
+            <Link to="/guided-learning-experience" className={location.pathname === '/guided-learning-experience' ? 'active' : ''}>
+              Learning
+            </Link>
+            <Link to="/chapters" className={location.pathname === '/chapters' || location.pathname.includes('/flashcards/') || location.pathname.includes('/quiz/') || location.pathname.includes('/concepts/') ? 'active' : ''}>
+              Chapters
+            </Link>
+            <Link to="/profile" className="profile-circle-link">
+              <div className="profile-circle">
+                <span>{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+              </div>
+            </Link>
+            <button onClick={handleSignOut} className="sign-out-button">
               Sign Out
             </button>
           </div>
